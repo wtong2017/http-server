@@ -7,15 +7,28 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <stdlib.h>
 
 #define SERVER_PORT (80) // port 80 for http
 #define LISTENNQ (5)
 #define MAXLINE (4096)
 #define MAXTHREAD (5)
 
+struct map {
+    char* ext;
+    char* type;
+};
+
+/* Forward declaration */
 void* request_func(void *args);
 
 int threads_count = 0;
+struct map ext_to_type[] = {
+    {"html", "text/html"},
+    {"jpg", "image/jpeg"},
+    {"pdf", "application/pdf"}
+};
+
 int main(int argc, char **argv) {
     int listenfd, connfd;
 
@@ -86,9 +99,11 @@ void* request_func(void *args) {
     int connfd = (int)args;
     char rcv_buff[MAXLINE] = {0};
     char wrt_buff[MAXLINE] = {0};
-    char http_response[MAXLINE] = {0};
-    int bytes_rcv, index, bytes_wrt, total_bytes_wrt;
-    char *first_line, *http_action, *path, *p;
+    int bytes_rcv, index, bytes_wrt, total_bytes_wrt, file_size, res;
+    char *first_line, *http_action, *path, *p, *ext;
+    unsigned char *file_buff;
+    char tmp[MAXLINE] = {0};
+    char content_type[20] = {0};
     FILE *file;
 
     /* read the response */
@@ -101,45 +116,81 @@ void* request_func(void *args) {
     // printf("%s\n", rcv_buff);
 
     /* parse the request */
+    // Get the first line of the request
     p = rcv_buff;
     first_line = strsep(&p, "\r\n");
     // printf("%s\n", first_line);
+    // Get the http action
     http_action = strsep(&first_line, " ");
     // printf("%s\n", http_action);
     if (strncmp(http_action, "GET\0", 4)) {
         printf("%s\n", "Not GET");
         return;
     }
+    // Get the path
     path = strsep(&first_line, " ");
     // printf("%s\n", path);
-    if (strncmp(path, "/\0", 2) == 0)
+    if (!strncmp(path, "/\0", 2))
         path = "/index.html";
+    // Get the extension
+    strncpy(tmp, path, sizeof(tmp));
+    p = tmp;
+    ext = strsep(&p, ".");
+    ext = strsep(&p, "");
+    // printf("%s\n", ext);
+    for (int i = 0; i < sizeof(ext_to_type) / sizeof(ext_to_type[0]); ++i) {
+        if (!strncmp(ext_to_type[i].ext, ext, strlen(ext))) {
+            strncpy(content_type, ext_to_type[i].type, sizeof(content_type));
+        }
+    }
 
     /* prepare for the send buffer */
-    file = fopen(path+1, "r"); // use relative path: skip '/' in path
+    file = fopen(path + 1, "r"); // use relative path: skip '/' in path
     if (!file) {
-        snprintf(http_response, sizeof(http_response) - 1, "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n\r\n<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL %s was not found on this server.</p></body></html>", 159 + strlen(path), path);
+        snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n\r\n<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL %s was not found on this server.</p></body></html>", 159 + strlen(path), path);
     } else {
-        index = 0;
-        // TODO: handle out of wrt_buff
-        while ((wrt_buff[index] = fgetc(file)) != EOF && index < MAXLINE-1) {
-            ++index;
+        // obtain the file size:
+        fseek(file , 0 , SEEK_END);
+        file_size = ftell(file);
+        rewind(file);
+        // send the response header
+        snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n\r\n", content_type, sizeof(char)*(file_size));
+        write(connfd, wrt_buff, strlen(wrt_buff));
+        // handle the file reading
+        file_buff = (char*)malloc(sizeof(char)*(file_size));
+        res = fread(file_buff, 1, file_size, file);
+        if (res != file_size) {
+            printf("%s\n", "Reading error");
         }
-        wrt_buff[index] = '\0';
+        // index = 0;
+        // while ((file_buff[index] = fgetc(file)) != EOF) {
+        //     printf("%c\n", file_buff[index]);
+        //     ++index;
+        // }
+        // file_buff[index] = '\0';
         fclose(file);
-        // printf("%s\n", wrt_buff);
+        // printf("%s\n", file_buff);
+        // send the content of the file
+        int i = 0;
+        while (i < file_size) {
+           write(connfd, (unsigned char*)file_buff + i, sizeof(unsigned char));
+           i++;
+           // if( ! (i % 16) ) printf( "\n" );
+        }
         // TODO: handle other type of documents e.g. pdf, jpg
-        snprintf(http_response, sizeof(http_response) - 1, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n\r\n%s", strlen(wrt_buff), wrt_buff);
-        // printf("%s\n", http_response);
+        // snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n\r\n%s", content_type, sizeof(char)*(file_size), file_buff);
+        // printf("%s\n", wrt_buff);
     }
 
     /* write the buffer to the connection */
-    bytes_wrt = 0;
-    total_bytes_wrt = strlen(http_response);
-    while (bytes_wrt < total_bytes_wrt) {
-        bytes_wrt += write(connfd, http_response + bytes_wrt, total_bytes_wrt - bytes_wrt);
-    }
+    // bytes_wrt = 0;
+    // total_bytes_wrt = strlen(wrt_buff);
+    // printf("%i\n", total_bytes_wrt);
+    // while (bytes_wrt < total_bytes_wrt) {
+    //     bytes_wrt += write(connfd, wrt_buff + bytes_wrt, total_bytes_wrt - bytes_wrt);
+    // }
 
     close(connfd);
+    free(file_buff);
     threads_count--;
 }

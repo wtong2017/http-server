@@ -13,7 +13,7 @@ link to PDF file. The HTML files should use at least one CSS file.
 - [x] Support multiple threads
 - [x] Support HTML
 - [ ] Support CSS
-- [ ] Support JPG
+- [x] Support JPG
 - [ ] Support PDF
 - [ ] Support PPTX
 - [ ] Support gzip content-encoding/compression
