@@ -19,7 +19,7 @@ struct map {
     char* type;
 };
 
-/* Forward declaration */
+/* forward declaration */
 void* request_func(void *args);
 
 int threads_count = 0;
@@ -102,10 +102,12 @@ void* request_func(void *args) {
     char rcv_buff[MAXLINE] = {0};
     char wrt_buff[MAXLINE] = {0};
     int bytes_rcv, index, bytes_wrt, total_bytes_wrt, file_size, res;
+    int is_compressed = 0;
     char *first_line, *http_action, *path, *p, *ext;
     unsigned char *file_buff;
     char tmp[MAXLINE] = {0};
     char content_type[100] = {0};
+    char compressed_file_path[100] = {0};
     FILE *file;
 
     /* read the response */
@@ -118,23 +120,23 @@ void* request_func(void *args) {
     // printf("%s\n", rcv_buff);
 
     /* parse the request */
-    // Get the first line of the request
+    // get the first line of the request
     p = rcv_buff;
     first_line = strsep(&p, "\r\n");
     // printf("%s\n", first_line);
-    // Get the http action
+    // get the http action
     http_action = strsep(&first_line, " ");
     // printf("%s\n", http_action);
     if (strncmp(http_action, "GET\0", 4)) {
         printf("%s\n", "Not GET");
         return 0;
     }
-    // Get the path
+    // get the path
     path = strsep(&first_line, " ");
     // printf("%s\n", path);
     if (!strncmp(path, "/\0", 2))
         path = "/index.html";
-    // Get the extension
+    // get the extension
     strncpy(tmp, path, sizeof(tmp));
     p = tmp;
     ext = strsep(&p, ".");
@@ -146,21 +148,40 @@ void* request_func(void *args) {
         }
     }
 
+    if (!content_type) {
+        printf("Do not support file with extension %s\n", ext);
+        return 0;
+    }
+
     /* prepare for the send buffer */
-    file = fopen(path + 1, "r"); // use relative path: skip '/' in path
+    // look for the compressed file
+    strncpy(compressed_file_path, path + 1, sizeof(compressed_file_path));
+    strcat(compressed_file_path, ".gz");
+    file = fopen(compressed_file_path, "r");
     if (!file) {
-        printf("%s %s\n", path, "404");
-        snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n\r\n<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL %s was not found on this server.</p></body></html>", 159 + strlen(path), path); // Hard code the length
+        printf("%s is not found\n", compressed_file_path);
+        // look for the file
+        file = fopen(path + 1, "r"); // use relative path: skip '/' in path
+    } else {
+        is_compressed = 1;
+    }
+    if (!file) {
+        printf("%s is not found\n", path + 1);
+        snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: %lu\r\nKeep-Alive: timeout=5, max=100\r\nConnection: Keep-Alive\r\n\r\n<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL %s was not found on this server.</p></body></html>", 159 + strlen(path), path); // hard code the length
+        // printf("%s\n", wrt_buff);
         write(connfd, wrt_buff, strlen(wrt_buff));
     } else {
-        // obtain the file size:
+        // obtain the file size
         fseek(file , 0 , SEEK_END);
         file_size = ftell(file);
         rewind(file);
         // send the response header
-        snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n\r\n", content_type, sizeof(char)*(file_size));
+        snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n", content_type, sizeof(char)*(file_size));
         write(connfd, wrt_buff, strlen(wrt_buff));
         printf("%s\n", wrt_buff);
+        if (is_compressed)
+            write(connfd, "Content-Encoding: gzip\r\n", 24); // hard code the length
+        write(connfd, "\r\n", 2); // hard code the length
         // handle the file reading
         file_buff = (char*)malloc(sizeof(char)*(file_size));
         res = fread(file_buff, 1, file_size, file);
