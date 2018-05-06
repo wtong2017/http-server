@@ -14,7 +14,7 @@ link to PDF file. The HTML files should use at least one CSS file.
 - [x] Support HTML
 - [ ] Support CSS
 - [x] Support JPG
-- [ ] Support PDF
+- [x] Support PDF
 - [ ] Support PPTX
 - [ ] Support gzip content-encoding/compression
 - [ ] Support chunked transfer encoding
