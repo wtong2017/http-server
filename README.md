@@ -12,7 +12,7 @@ link to PDF file. The HTML files should use at least one CSS file.
 ## TODO
 - [x] Support multiple threads
 - [x] Support HTML
-- [ ] Support CSS
+- [x] Support CSS
 - [x] Support JPG
 - [x] Support PDF
 - [ ] Support PPTX

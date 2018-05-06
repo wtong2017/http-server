@@ -10,9 +10,9 @@
 #include <stdlib.h>
 
 #define SERVER_PORT (80) // port 80 for http
-#define LISTENNQ (5)
+#define LISTENNQ (10)
 #define MAXLINE (4096)
-#define MAXTHREAD (5)
+#define MAXTHREAD (10)
 
 struct map {
     char* ext;
@@ -125,7 +125,7 @@ void* request_func(void *args) {
     // printf("%s\n", http_action);
     if (strncmp(http_action, "GET\0", 4)) {
         printf("%s\n", "Not GET");
-        return;
+        return 0;
     }
     // Get the path
     path = strsep(&first_line, " ");
