@@ -26,7 +26,9 @@ int threads_count = 0;
 struct map ext_to_type[] = {
     {"html", "text/html"},
     {"jpg", "image/jpeg"},
-    {"pdf", "application/pdf"}
+    {"pdf", "application/pdf"},
+    {"css", "text/css"},
+    {"pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"}
 };
 
 int main(int argc, char **argv) {
@@ -103,7 +105,7 @@ void* request_func(void *args) {
     char *first_line, *http_action, *path, *p, *ext;
     unsigned char *file_buff;
     char tmp[MAXLINE] = {0};
-    char content_type[20] = {0};
+    char content_type[100] = {0};
     FILE *file;
 
     /* read the response */
@@ -147,6 +149,7 @@ void* request_func(void *args) {
     /* prepare for the send buffer */
     file = fopen(path + 1, "r"); // use relative path: skip '/' in path
     if (!file) {
+        printf("%s %s\n", path, "404");
         snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n\r\n<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL %s was not found on this server.</p></body></html>", 159 + strlen(path), path);
     } else {
         // obtain the file size:
@@ -156,11 +159,13 @@ void* request_func(void *args) {
         // send the response header
         snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n\r\n", content_type, sizeof(char)*(file_size));
         write(connfd, wrt_buff, strlen(wrt_buff));
+        printf("%s\n", wrt_buff);
         // handle the file reading
         file_buff = (char*)malloc(sizeof(char)*(file_size));
         res = fread(file_buff, 1, file_size, file);
         if (res != file_size) {
             printf("%s\n", "Reading error");
+            return 0;
         }
         // index = 0;
         // while ((file_buff[index] = fgetc(file)) != EOF) {

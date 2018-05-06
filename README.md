@@ -15,7 +15,8 @@ link to PDF file. The HTML files should use at least one CSS file.
 - [x] Support CSS
 - [x] Support JPG
 - [x] Support PDF
-- [ ] Support PPTX
+- [x] Support PPTX
+- [ ] Fix the warning when loading PPTX file in browser
 - [ ] Support gzip content-encoding/compression
 - [ ] Support chunked transfer encoding
 - [ ] Create several HTML files for testing
