@@ -150,7 +150,8 @@ void* request_func(void *args) {
     file = fopen(path + 1, "r"); // use relative path: skip '/' in path
     if (!file) {
         printf("%s %s\n", path, "404");
-        snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n\r\n<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL %s was not found on this server.</p></body></html>", 159 + strlen(path), path);
+        snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n\r\n<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL %s was not found on this server.</p></body></html>", 159 + strlen(path), path); // Hard code the length
+        write(connfd, wrt_buff, strlen(wrt_buff));
     } else {
         // obtain the file size:
         fseek(file , 0 , SEEK_END);
