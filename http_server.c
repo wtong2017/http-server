@@ -13,6 +13,7 @@
 #define LISTENNQ (10)
 #define MAXLINE (4096)
 #define MAXTHREAD (10)
+#define CHUNKSIZE (100)
 
 struct map {
     char* ext;
@@ -101,8 +102,9 @@ void* request_func(void *args) {
     int connfd = (int)args;
     char rcv_buff[MAXLINE] = {0};
     char wrt_buff[MAXLINE] = {0};
-    int bytes_rcv, index, bytes_wrt, total_bytes_wrt, file_size, res;
+    int bytes_rcv, bytes_wrt, total_bytes_wrt, file_size, res, i;
     int is_compressed = 0;
+    int chunked_transfer = 1;
     char *first_line, *http_action, *path, *p, *ext;
     unsigned char *file_buff;
     char tmp[MAXLINE] = {0};
@@ -176,48 +178,57 @@ void* request_func(void *args) {
         file_size = ftell(file);
         rewind(file);
         // send the response header
-        snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %lu\r\nKeep-Alive: timeout=5, max=100\r\nConnection: Keep-Alive\r\n", content_type, sizeof(char)*(file_size));
+        snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nKeep-Alive: timeout=5, max=100\r\nConnection: Keep-Alive\r\n", content_type);
         write(connfd, wrt_buff, strlen(wrt_buff));
-        printf("%s\n", wrt_buff);
+        if (chunked_transfer) {
+            snprintf(wrt_buff, sizeof(wrt_buff) - 1, "Transfer-Encoding: chunked\r\n");
+        } else {
+            snprintf(wrt_buff, sizeof(wrt_buff) - 1, "Content-Length: %lu\r\n", sizeof(char)*(file_size));
+        }
+        write(connfd, wrt_buff, strlen(wrt_buff)); // hard code the lengthContent-Length: %lu\r\n
         if (is_compressed)
             write(connfd, "Content-Encoding: gzip\r\n", 24); // hard code the length
         write(connfd, "\r\n", 2); // hard code the length
         // handle the file reading
-        file_buff = (char*)malloc(sizeof(char)*(file_size));
-        res = fread(file_buff, 1, file_size, file);
-        if (res != file_size) {
-            printf("%s\n", "Reading error");
-            return 0;
+        if (chunked_transfer) {
+            printf("%s\n", "Chunked transfer");
+            file_buff = malloc(sizeof(unsigned char)*(CHUNKSIZE));
+            while ((res = fread(file_buff, 1, CHUNKSIZE, file)) == CHUNKSIZE) {
+                // send the content of the file in chunk
+                snprintf(wrt_buff, sizeof(wrt_buff) - 1, "%04X\r\n", res);
+                write(connfd, wrt_buff, strlen(wrt_buff));
+                write(connfd, file_buff, res);
+                write(connfd, "\r\n", 2); // hard code the length
+            }
+            if (res != 0) {
+                snprintf(wrt_buff, sizeof(wrt_buff) - 1, "%04X\r\n", res);
+                write(connfd, wrt_buff, strlen(wrt_buff));
+                write(connfd, file_buff, res);
+                write(connfd, "\r\n", 2); // hard code the length
+            }
+            write(connfd, "0\r\n", 3);
+            write(connfd, "\r\n", 2); // hard code the length
+            free(file_buff);
         }
-        // index = 0;
-        // while ((file_buff[index] = fgetc(file)) != EOF) {
-        //     printf("%c\n", file_buff[index]);
-        //     ++index;
-        // }
-        // file_buff[index] = '\0';
+        else { 
+            file_buff = malloc(sizeof(unsigned char)*(file_size));
+            res = fread(file_buff, 1, file_size, file);
+            if (res != file_size) {
+                printf("%s\n", "Reading error");
+                return 0;
+            }
+            // send the content of the file
+            // printf("%s\n", file_buff);
+            i = 0;
+            while (i < file_size) {
+               write(connfd, file_buff + i, sizeof(unsigned char));
+               i++;
+            }
+            free(file_buff);
+        }
         fclose(file);
-        // printf("%s\n", file_buff);
-        // send the content of the file
-        int i = 0;
-        while (i < file_size) {
-           write(connfd, (unsigned char*)file_buff + i, sizeof(unsigned char));
-           i++;
-           // if( ! (i % 16) ) printf( "\n" );
-        }
-        // TODO: handle other type of documents e.g. pdf, jpg
-        // snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n\r\n%s", content_type, sizeof(char)*(file_size), file_buff);
-        // printf("%s\n", wrt_buff);
     }
 
-    /* write the buffer to the connection */
-    // bytes_wrt = 0;
-    // total_bytes_wrt = strlen(wrt_buff);
-    // printf("%i\n", total_bytes_wrt);
-    // while (bytes_wrt < total_bytes_wrt) {
-    //     bytes_wrt += write(connfd, wrt_buff + bytes_wrt, total_bytes_wrt - bytes_wrt);
-    // }
-
     close(connfd);
-    free(file_buff);
     threads_count--;
 }
