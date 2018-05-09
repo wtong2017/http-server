@@ -176,7 +176,7 @@ void* request_func(void *args) {
         file_size = ftell(file);
         rewind(file);
         // send the response header
-        snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %lu\r\nConnection: Keep-Alive\r\n", content_type, sizeof(char)*(file_size));
+        snprintf(wrt_buff, sizeof(wrt_buff) - 1, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %lu\r\nKeep-Alive: timeout=5, max=100\r\nConnection: Keep-Alive\r\n", content_type, sizeof(char)*(file_size));
         write(connfd, wrt_buff, strlen(wrt_buff));
         printf("%s\n", wrt_buff);
         if (is_compressed)
