@@ -29,7 +29,8 @@ struct map ext_to_type[] = {
     {"jpg", "image/jpeg"},
     {"pdf", "application/pdf"},
     {"css", "text/css"},
-    {"pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"}
+    {"pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+    {"png", "image/png"},
 };
 
 int main(int argc, char **argv) {

@@ -19,4 +19,4 @@ link to PDF file. The HTML files should use at least one CSS file.
 - [ ] Fix the warning when loading PPTX file in browser
 - [x] Support gzip content-encoding/compression
 - [x] Support chunked transfer encoding
-- [ ] Create several HTML files for testing
+- [x] Create several HTML files for testing

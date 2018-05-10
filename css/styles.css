@@ -1,0 +1,11 @@
+body {
+	background-color: SlateBlue;
+}
+
+h1, p {
+	color: white;
+}
+
+.content {
+	color: grey;
+}
